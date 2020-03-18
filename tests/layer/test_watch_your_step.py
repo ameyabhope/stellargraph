@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from stellargraph.layer import AttentiveWalk, WatchYourStep, get_embeddings
+from stellargraph.layer import AttentiveWalk, WatchYourStep
 import numpy as np
 from ..test_utils.graphs import barbell
 from stellargraph.mapper import AdjacencyPowerGenerator
@@ -85,7 +85,7 @@ def test_WatchYourStep(barbell):
     model.compile(optimizer="adam", loss=graph_log_likelihood)
     model.fit(gen, epochs=1, steps_per_epoch=int(len(barbell.nodes()) // 4))
 
-    embs = get_embeddings(model)
+    embs = wys.embeddings(model)
 
     assert embs.shape == (len(barbell.nodes()), wys.embedding_dimension)
 
@@ -97,6 +97,10 @@ def test_WatchYourStep_embeddings(barbell):
 
     model = Model(inputs=x_in, outputs=x_out)
     model.compile(optimizer="adam", loss=graph_log_likelihood)
-    embs = get_embeddings(model)
+    embs = wys.embeddings(model)
 
     assert (embs == 1).all()
+
+    wys2 = WatchYourStep(generator)
+    with pytest.raises(ValueError, match="model: expected a model created.*WatchYourStep"):
+        wys2.embeddings(model)

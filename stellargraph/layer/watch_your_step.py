@@ -105,28 +105,6 @@ class AttentiveWalk(Layer):
         return expected_walk
 
 
-def get_embeddings(model):
-    """
-    This function returns the embeddings from a model with Watch Your Step embeddings.
-
-    Args:
-        model (keras Model): a keras model that contains Watch Your Step embeddings.
-
-    Returns:
-        embeddings (np.array): a numpy array of the model's embeddings.
-    """
-    embeddings = np.hstack(
-        [
-            model.get_layer("WATCH_YOUR_STEP_LEFT_EMBEDDINGS").embeddings.numpy(),
-            model.get_layer("WATCH_YOUR_STEP_RIGHT_EMBEDDINGS")
-            .kernel.numpy()
-            .transpose(),
-        ]
-    )
-
-    return embeddings
-
-
 class WatchYourStep:
     """
     Implementation of the node embeddings as in Watch Your Step: Learning Node Embeddings via Graph Attention
@@ -189,22 +167,50 @@ class WatchYourStep:
         self.embeddings_regularizer = embeddings_regularizer
         self.embeddings_constraint = embeddings_constraint
 
-    def build(self):
+    def _layer_name(self, suffix):
+        return f"WATCH_YOUR_STEP_{id(self)}_{suffix}"
+
+    def embeddings(self, model):
         """
-        This function builds the layers for a keras model.
+        This function returns the embeddings from a model with Watch Your Step embeddings.
 
-        returns:
-            A tuple of (inputs, outputs) to use with a keras model.
+        Args:
+            model (keras Model): a keras model that contains Watch Your Step embeddings.
+
+        Returns:
+            embeddings (np.array): a numpy array of the model's embeddings.
         """
+        try:
+            left = model.get_layer(self._layer_name("LEFT"))
+            right = model.get_layer(self._layer_name("RIGHT"))
+        except ValueError:
+            raise ValueError("model: expected a model created by this specific instance of WatchYourStep")
 
-        input_rows = Input(batch_shape=(None,), name="row_node_ids", dtype="int64")
-        input_powers = Input(batch_shape=(None, self.num_powers, self.n_nodes))
+        embeddings = np.hstack(
+            [left.embeddings.numpy(), right.kernel.numpy().transpose()]
+        )
 
+        return embeddings
+
+    def __call__(self, inp):
+        """
+        Apply the Watch Your Step layers to the inputs.
+
+        Args:
+            inp: a pair of input tensors, where the first is the index of the node (shape
+                ``batch_size × m`` for some ``m``) and the second is the corresponding set of rows
+                of adjacency matrix powers (shape ``batch_size × m × num_powers × number of
+                nodes``).
+
+        Returns:
+            Output tensor
+        """
+        input_rows, input_powers = inp
         left_embedding = Embedding(
             self.n_nodes,
             int(self.embedding_dimension / 2),
             input_length=None,
-            name="WATCH_YOUR_STEP_LEFT_EMBEDDINGS",
+            name=self._layer_name("LEFT"),
             embeddings_initializer=self.embeddings_initializer,
             embeddings_regularizer=self.embeddings_regularizer,
             embeddings_constraint=self.embeddings_constraint,
@@ -221,7 +227,7 @@ class WatchYourStep:
             kernel_initializer=self.embeddings_initializer,
             kernel_regularizer=self.embeddings_regularizer,
             kernel_constraint=self.embeddings_constraint,
-            name="WATCH_YOUR_STEP_RIGHT_EMBEDDINGS",
+            name=self._layer_name("RIGHT"),
         )(vectors_left)
 
         sigmoids = tf.keras.activations.sigmoid(outer_product)
@@ -238,4 +244,18 @@ class WatchYourStep:
 
         output = Concatenate(axis=1)([expander(expected_walk), expander(sigmoids)])
 
-        return [input_rows, input_powers], output
+        return output
+
+    def build(self):
+        """
+        This function builds the layers for a keras model.
+
+        returns:
+            A tuple of (inputs, outputs) to use with a keras model.
+        """
+
+        input_rows = Input(batch_shape=(None,), name="row_node_ids", dtype="int64")
+        input_powers = Input(batch_shape=(None, self.num_powers, self.n_nodes))
+        inp = [input_rows, input_powers]
+
+        return inp, self(inp)
