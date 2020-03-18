@@ -107,10 +107,11 @@ def test_complex_rankings():
     )
 
     gen = KGTripleGenerator(all_edges, 3)
-    x_inp, x_out = ComplEx(gen, 5).build()
+    complex_model = ComplEx(gen, 5)
+    x_inp, x_out = complex_model.build()
     model = Model(x_inp, x_out)
 
-    raw = self.rank_edges_against_all_nodes(model, gen.flow(df), all_edges)
+    raw = complex_model.rank_edges_against_all_nodes(model, gen.flow(df), all_edges)
     # basic check that the ranks are formed correctly
     assert raw.dtype == int
     assert np.all(raw >= 1)
