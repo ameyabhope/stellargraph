@@ -109,15 +109,12 @@ class ComplEx:
         self.embeddings_initializer = initializers.get(embeddings_initializer)
         self.embeddings_regularizer = regularizers.get(embeddings_regularizer)
 
-    # layer names
-    _NODE_REAL = "COMPLEX_NODE_REAL"
-    _NODE_IMAG = "COMPLEX_NODE_IMAG"
+    def _layer_name(self, node, real):
+        type_ = "NODE" if node else "EDGE_TYPE"
+        part = "REAL" if real else "IMAG"
+        return f"COMPLEX_{id(self)}_{type_}_{part}"
 
-    _REL_REAL = "COMPLEX_EDGE_TYPE_REAL"
-    _REL_IMAG = "COMPLEX_EDGE_TYPE_IMAG"
-
-    @staticmethod
-    def embeddings(model):
+    def embeddings(self, model):
         """
         Retrieve the embeddings for nodes/entities and edge types/relations in the given model.
 
@@ -129,11 +126,21 @@ class ComplEx:
             (``shape = number of nodes × k``), the second element is the embeddings for edge
             types/relations (``shape = number of edge types x k``).
         """
-        node = 1j * model.get_layer(ComplEx._NODE_IMAG).embeddings.numpy()
-        node += model.get_layer(ComplEx._NODE_REAL).embeddings.numpy()
+        try:
+            node_re = model.get_layer(self._layer_name(node=True, real=True))
+            node_im = model.get_layer(self._layer_name(node=True, real=False))
+            rel_re = model.get_layer(self._layer_name(node=False, real=True))
+            rel_im = model.get_layer(self._layer_name(node=False, real=False))
+        except ValueError:
+            raise ValueError(
+                "model: expected a model created by this specific instance of ComplEx"
+            )
 
-        rel = 1j * model.get_layer(ComplEx._REL_IMAG).embeddings.numpy()
-        rel += model.get_layer(ComplEx._REL_REAL).embeddings.numpy()
+        node = 1j * node_im.embeddings.numpy()
+        node += node_re.embeddings.numpy()
+
+        rel = 1j * rel_im.embeddings.numpy()
+        rel += rel_re.embeddings.numpy()
 
         return node, rel
 
@@ -226,11 +233,11 @@ class ComplEx:
 
         return raw
 
-    def _embed(self, count, name):
+    def _embed(self, count, node, real):
         return Embedding(
             count,
             self.k,
-            name=name,
+            name=self._layer_name(node=node, real=real),
             embeddings_initializer=self.embeddings_initializer,
             embeddings_regularizer=self.embeddings_regularizer,
         )
@@ -248,10 +255,14 @@ class ComplEx:
 
         # ComplEx generates embeddings in C, which we model as separate real and imaginary
         # embeddings
-        node_embeddings_real = self._embed(self.num_nodes, self._NODE_REAL)
-        node_embeddings_imag = self._embed(self.num_nodes, self._NODE_IMAG)
-        edge_type_embeddings_real = self._embed(self.num_edge_types, self._REL_REAL)
-        edge_type_embeddings_imag = self._embed(self.num_edge_types, self._REL_IMAG)
+        node_embeddings_real = self._embed(self.num_nodes, node=True, real=True)
+        node_embeddings_imag = self._embed(self.num_nodes, node=True, real=False)
+        edge_type_embeddings_real = self._embed(
+            self.num_edge_types, node=False, real=True
+        )
+        edge_type_embeddings_imag = self._embed(
+            self.num_edge_types, node=False, real=False
+        )
 
         s_re = node_embeddings_real(s_iloc)
         s_im = node_embeddings_imag(s_iloc)
@@ -357,12 +368,11 @@ class DistMult:
         self.embeddings_initializer = initializers.get(embeddings_initializer)
         self.embeddings_regularizer = regularizers.get(embeddings_regularizer)
 
-    # layer names
-    _NODE = "DISTMULT_NODE"
-    _REL = "DISTMULT_EDGE_TYPE"
+    def _layer_name(self, node):
+        type_ = "NODE" if node else "EDGE_TYPE"
+        return f"DISTMULT_{id(self)}_{type_}"
 
-    @staticmethod
-    def embeddings(model):
+    def embeddings(self, model):
         """
         Retrieve the embeddings for nodes/entities and edge types/relations in the given model.
 
@@ -374,19 +384,24 @@ class DistMult:
             (``shape = number of nodes × k``), the second element is the embeddings for edge
             types/relations (``shape = number of edge types x k``).
         """
-        node = model.get_layer(DistMult._NODE).embeddings.numpy()
-        rel = model.get_layer(DistMult._REL).embeddings.numpy()
+        try:
+            node = model.get_layer(self._layer_name(node=True))
+            rel = model.get_layer(self._layer_name(node=False))
+        except ValueError:
+            raise ValueError(
+                "model: expected a model created by this specific instance of DistMult"
+            )
 
-        return node, rel
+        return node.embeddings.numpy(), rel.embeddings.numpy()
 
-    def _embed(self, count, name):
+    def _embed(self, count, node):
         # FIXME(#980,https://github.com/tensorflow/tensorflow/issues/33755): embeddings can't use
         # constraints to be normalized: per section 4 in the paper, the embeddings should be
         # normalised to have unit norm.
         return Embedding(
             count,
             self.embedding_dimension,
-            name=name,
+            name=self._layer_name(node=node),
             embeddings_initializer=self.embeddings_initializer,
             embeddings_regularizer=self.embeddings_regularizer,
         )
@@ -403,8 +418,8 @@ class DistMult:
         e1_iloc, r_iloc, e2_iloc = x
 
         # DistMult generates embeddings in R
-        node_embeddings = self._embed(self.num_nodes, self._NODE)
-        edge_type_embeddings = self._embed(self.num_edge_types, self._REL)
+        node_embeddings = self._embed(self.num_nodes, node=True)
+        edge_type_embeddings = self._embed(self.num_edge_types, node=False)
 
         y_e1 = node_embeddings(e1_iloc)
         m_r = edge_type_embeddings(r_iloc)

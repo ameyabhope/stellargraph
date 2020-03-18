@@ -50,7 +50,8 @@ def test_complex(knowledge_graph):
 
     # use a random initializer with a large positive range, so that any differences are obvious
     init = initializers.RandomUniform(-1, 1)
-    x_inp, x_out = ComplEx(gen, 5, embeddings_initializer=init).build()
+    complex_model = ComplEx(gen, 5, embeddings_initializer=init)
+    x_inp, x_out = complex_model.build()
 
     model = Model(x_inp, x_out)
     model.compile(loss=losses.BinaryCrossentropy(from_logits=True))
@@ -74,7 +75,7 @@ def test_complex(knowledge_graph):
     r_idx = knowledge_graph._edges.types.to_iloc(df.label)
     o_idx = knowledge_graph._get_index_for_nodes(df.target)
 
-    nodes, edge_types = ComplEx.embeddings(model)
+    nodes, edge_types = complex_model.embeddings(model)
     # the rows correspond to the embeddings for the given edge, so we can do bulk operations
     e_s = nodes[s_idx, :]
     w_r = edge_types[r_idx, :]
@@ -86,6 +87,10 @@ def test_complex(knowledge_graph):
 
     # (use an absolute tolerance to allow for catastrophic cancellation around very small values)
     assert np.allclose(prediction[:, 0], actual, rtol=1e-3, atol=1e-14)
+
+    complex_model2 = ComplEx(gen, 5)
+    with pytest.raises(ValueError, match="model: expected a model created.*ComplEx"):
+        complex_model2.embeddings(model)
 
 
 def test_complex_rankings():
@@ -133,7 +138,8 @@ def test_dismult(knowledge_graph):
 
     # use a random initializer with a large range, so that any differences are obvious
     init = initializers.RandomUniform(-1, 1)
-    x_inp, x_out = DistMult(gen, 5, embeddings_initializer=init).build()
+    distmult_model = DistMult(gen, 5, embeddings_initializer=init)
+    x_inp, x_out = distmult_model.build()
 
     model = Model(x_inp, x_out)
 
@@ -158,7 +164,7 @@ def test_dismult(knowledge_graph):
     r_idx = knowledge_graph._edges.types.to_iloc(df.label)
     o_idx = knowledge_graph._get_index_for_nodes(df.target)
 
-    nodes, edge_types = DistMult.embeddings(model)
+    nodes, edge_types = distmult_model.embeddings(model)
     # the rows correspond to the embeddings for the given edge, so we can do bulk operations
     e_s = nodes[s_idx, :]
     w_r = edge_types[r_idx, :]
@@ -170,3 +176,7 @@ def test_dismult(knowledge_graph):
 
     # (use an absolute tolerance to allow for catastrophic cancellation around very small values)
     assert np.allclose(prediction[:, 0], actual, rtol=1e-3, atol=1e-14)
+
+    distmult_model2 = DistMult(gen, 5)
+    with pytest.raises(ValueError, match="model: expected a model created.*DistMult"):
+        distmult_model2.embeddings(model)
