@@ -110,7 +110,7 @@ def test_complex_rankings():
     x_inp, x_out = ComplEx(gen, 5).build()
     model = Model(x_inp, x_out)
 
-    raw = ComplEx.rank_edges_against_all_nodes(model, gen.flow(df), all_edges)
+    raw = self.rank_edges_against_all_nodes(model, gen.flow(df), all_edges)
     # basic check that the ranks are formed correctly
     assert raw.dtype == int
     assert np.all(raw >= 1)

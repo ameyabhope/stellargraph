@@ -144,8 +144,7 @@ class ComplEx:
 
         return node, rel
 
-    @staticmethod
-    def rank_edges_against_all_nodes(model, test_data, known_edges_graph):
+    def rank_edges_against_all_nodes(self, model, test_data, known_edges_graph):
         """
         Returns the ranks of the true edges in ``test_data``, when scored against all other similar
         edges.
@@ -199,7 +198,7 @@ class ComplEx:
 
             return raw_rank
 
-        all_node_embs, all_rel_embs = ComplEx.embeddings(model)
+        all_node_embs, all_rel_embs = self.embeddings(model)
         all_node_embs_conj = all_node_embs.conj()
 
         raws = []
