@@ -102,5 +102,7 @@ def test_WatchYourStep_embeddings(barbell):
     assert (embs == 1).all()
 
     wys2 = WatchYourStep(generator)
-    with pytest.raises(ValueError, match="model: expected a model created.*WatchYourStep"):
+    with pytest.raises(
+        ValueError, match="model: expected a model created.*WatchYourStep"
+    ):
         wys2.embeddings(model)

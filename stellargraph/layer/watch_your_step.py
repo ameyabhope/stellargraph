@@ -167,8 +167,9 @@ class WatchYourStep:
         self.embeddings_regularizer = embeddings_regularizer
         self.embeddings_constraint = embeddings_constraint
 
-    def _layer_name(self, suffix):
-        return f"WATCH_YOUR_STEP_{id(self)}_{suffix}"
+    def _layer_name(self, left):
+        side = "LEFT" if left else "RIGHT"
+        return f"WATCH_YOUR_STEP_{id(self)}_{side}"
 
     def embeddings(self, model):
         """
@@ -181,10 +182,12 @@ class WatchYourStep:
             embeddings (np.array): a numpy array of the model's embeddings.
         """
         try:
-            left = model.get_layer(self._layer_name("LEFT"))
-            right = model.get_layer(self._layer_name("RIGHT"))
+            left = model.get_layer(self._layer_name(left=True))
+            right = model.get_layer(self._layer_name(left=False))
         except ValueError:
-            raise ValueError("model: expected a model created by this specific instance of WatchYourStep")
+            raise ValueError(
+                "model: expected a model created by this specific instance of WatchYourStep"
+            )
 
         embeddings = np.hstack(
             [left.embeddings.numpy(), right.kernel.numpy().transpose()]
@@ -210,7 +213,7 @@ class WatchYourStep:
             self.n_nodes,
             int(self.embedding_dimension / 2),
             input_length=None,
-            name=self._layer_name("LEFT"),
+            name=self._layer_name(left=True),
             embeddings_initializer=self.embeddings_initializer,
             embeddings_regularizer=self.embeddings_regularizer,
             embeddings_constraint=self.embeddings_constraint,
@@ -227,7 +230,7 @@ class WatchYourStep:
             kernel_initializer=self.embeddings_initializer,
             kernel_regularizer=self.embeddings_regularizer,
             kernel_constraint=self.embeddings_constraint,
-            name=self._layer_name("RIGHT"),
+            name=self._layer_name(left=False),
         )(vectors_left)
 
         sigmoids = tf.keras.activations.sigmoid(outer_product)
